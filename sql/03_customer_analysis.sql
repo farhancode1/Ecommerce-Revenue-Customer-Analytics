@@ -1,0 +1,23 @@
+-- 03_customer_analysis.sql
+-- Customer value, repeat purchasing, and behavioural segmentation.
+
+-- Planned analyses:
+-- 1. New vs returning customers by month
+-- 2. Orders per customer
+-- 3. Revenue per customer
+-- 4. Repeat purchase rate
+-- 5. Top-value customers
+-- 6. Customer inactivity / recency
+
+-- Example repeat-purchase logic:
+-- WITH customer_orders AS (
+--   SELECT customer_id, COUNT(DISTINCT order_id) AS order_count
+--   FROM fact_orders
+--   WHERE order_status = 'completed'
+--   GROUP BY customer_id
+-- )
+-- SELECT
+--   COUNT(*) AS customers,
+--   SUM(CASE WHEN order_count > 1 THEN 1 ELSE 0 END) AS repeat_customers,
+--   1.0 * SUM(CASE WHEN order_count > 1 THEN 1 ELSE 0 END) / COUNT(*) AS repeat_rate
+-- FROM customer_orders;
