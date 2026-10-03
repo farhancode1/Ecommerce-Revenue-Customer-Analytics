@@ -21,8 +21,8 @@ FILES = {
 missing = [name for name in FILES.values() if not (RAW / name).exists()]
 if missing:
     raise FileNotFoundError(
-        "Missing raw files:\\n- " + "\\n- ".join(missing)
-        + "\\nDownload the Olist Brazilian E-Commerce dataset and place these files in data/raw/."
+        "Missing raw files:\n- " + "\n- ".join(missing)
+        + "\nDownload the Olist Brazilian E-Commerce dataset and place these files in data/raw/."
     )
 
 customers = pd.read_csv(RAW / FILES["customers"])
@@ -44,19 +44,18 @@ date_cols = [
 for col in date_cols:
     orders[col] = pd.to_datetime(orders[col], errors="coerce")
 
+reviews["review_answer_timestamp"] = pd.to_datetime(
+    reviews["review_answer_timestamp"], errors="coerce"
+)
+
 # Use delivered orders as the completed transaction population.
 delivered = orders.loc[orders["order_status"].eq("delivered")].copy()
 
-# Item-level fact table.
 fact = (
     delivered.merge(customers, on="customer_id", how="left")
     .merge(items, on="order_id", how="left")
     .merge(products, on="product_id", how="left")
-    .merge(
-        translation,
-        on="product_category_name",
-        how="left",
-    )
+    .merge(translation, on="product_category_name", how="left")
 )
 
 fact["category"] = (
@@ -65,13 +64,12 @@ fact["category"] = (
     .fillna("unknown")
 )
 fact["order_month"] = fact["order_purchase_timestamp"].dt.to_period("M").dt.to_timestamp()
-fact["is_late"] = (
-    fact["order_delivered_customer_date"] > fact["order_estimated_delivery_date"]
+fact["is_late"] = np.where(
+    fact["order_delivered_customer_date"].notna(),
+    fact["order_delivered_customer_date"] > fact["order_estimated_delivery_date"],
+    np.nan,
 )
 
-# ------------------------------
-# Overall KPI summary
-# ------------------------------
 order_merch = (
     fact.groupby("order_id", as_index=False)
     .agg(
@@ -84,6 +82,7 @@ order_merch = (
     )
 )
 
+customer_order_counts = order_merch.groupby("customer_unique_id")["order_id"].nunique()
 summary = pd.DataFrame(
     {
         "metric": [
@@ -101,19 +100,13 @@ summary = pd.DataFrame(
             order_merch["merchandise_revenue"].sum(),
             order_merch["freight_value"].sum(),
             order_merch["merchandise_revenue"].sum() / order_merch["order_id"].nunique(),
-            100
-            * (
-                order_merch.groupby("customer_unique_id")["order_id"].nunique().gt(1).mean()
-            ),
-            100 * order_merch["is_late"].mean(),
+            100 * customer_order_counts.gt(1).mean(),
+            100 * order_merch["is_late"].dropna().mean(),
         ],
     }
 )
 summary.to_csv(OUT / "kpi_summary.csv", index=False)
 
-# ------------------------------
-# Monthly KPIs
-# ------------------------------
 monthly = (
     fact.groupby("order_month", as_index=False)
     .agg(
@@ -128,9 +121,6 @@ monthly["average_order_value"] = monthly["merchandise_revenue"] / monthly["order
 monthly["mom_revenue_growth_pct"] = monthly["merchandise_revenue"].pct_change() * 100
 monthly.to_csv(OUT / "monthly_kpis.csv", index=False)
 
-# ------------------------------
-# Category performance
-# ------------------------------
 category = (
     fact.groupby("category", as_index=False)
     .agg(
@@ -144,9 +134,6 @@ category = (
 )
 category.to_csv(OUT / "category_performance.csv", index=False)
 
-# ------------------------------
-# State performance
-# ------------------------------
 state = (
     fact.groupby("customer_state", as_index=False)
     .agg(
@@ -159,9 +146,6 @@ state = (
 state["average_order_value"] = state["merchandise_revenue"] / state["orders"]
 state.to_csv(OUT / "state_performance.csv", index=False)
 
-# ------------------------------
-# Customer RFM
-# ------------------------------
 customer = (
     order_merch.groupby("customer_unique_id", as_index=False)
     .agg(
@@ -173,34 +157,34 @@ customer = (
 snapshot = order_merch["order_purchase_timestamp"].max().normalize() + pd.Timedelta(days=1)
 customer["recency_days"] = (snapshot - customer["last_order"].dt.normalize()).dt.days
 
-# Rank-based scoring is robust to the heavily tied frequency distribution.
 customer["r_score"] = pd.qcut(
-    customer["recency_days"].rank(method="first", ascending=True),
+    customer["recency_days"].rank(method="average", ascending=True),
     5,
     labels=[5, 4, 3, 2, 1],
 ).astype(int)
-customer["f_score"] = pd.qcut(
-    customer["frequency"].rank(method="first"),
-    5,
-    labels=[1, 2, 3, 4, 5],
-).astype(int)
 customer["m_score"] = pd.qcut(
-    customer["monetary"].rank(method="first"),
+    customer["monetary"].rank(method="average"),
     5,
     labels=[1, 2, 3, 4, 5],
 ).astype(int)
 
+# Most Olist customers order once, so frequency uses explicit business rules
+# instead of quantiles that would arbitrarily split tied frequency values.
+customer["f_score"] = customer["frequency"].map(
+    lambda x: 5 if x >= 3 else (3 if x == 2 else 1)
+)
+
 def segment(row):
     r, f, m = row["r_score"], row["f_score"], row["m_score"]
-    if r >= 4 and f >= 4 and m >= 4:
+    if r >= 4 and f >= 3 and m >= 4:
         return "Champions"
-    if r >= 3 and f >= 4:
+    if r >= 3 and f >= 3:
         return "Loyal Customers"
-    if r >= 4 and f <= 2:
+    if r >= 4 and f == 1:
         return "New / Promising"
     if r <= 2 and f >= 3:
         return "At Risk"
-    if r <= 2 and f <= 2:
+    if r <= 2 and f == 1:
         return "Hibernating"
     return "Potential Loyalists"
 
@@ -220,9 +204,6 @@ rfm_summary = (
 )
 rfm_summary.to_csv(OUT / "rfm_segment_summary.csv", index=False)
 
-# ------------------------------
-# Cohort retention
-# ------------------------------
 customer_months = (
     order_merch.assign(
         order_month=order_merch["order_purchase_timestamp"].dt.to_period("M").dt.to_timestamp()
@@ -251,9 +232,6 @@ cohort_retention["retention_rate_pct"] = (
 )
 cohort_retention.to_csv(OUT / "cohort_retention.csv", index=False)
 
-# ------------------------------
-# Payment mix
-# ------------------------------
 payment_mix = (
     payments.merge(delivered[["order_id"]], on="order_id", how="inner")
     .groupby("payment_type", as_index=False)
@@ -266,23 +244,23 @@ payment_mix = (
 )
 payment_mix.to_csv(OUT / "payment_mix.csv", index=False)
 
-# ------------------------------
-# Delivery + reviews
-# ------------------------------
-order_service = (
-    delivered[[
+order_service = delivered[
+    [
         "order_id",
         "order_purchase_timestamp",
         "order_delivered_customer_date",
         "order_estimated_delivery_date",
-    ]]
-    .copy()
-)
+    ]
+].copy()
 order_service["delivery_days"] = (
-    order_service["order_delivered_customer_date"] - order_service["order_purchase_timestamp"]
+    order_service["order_delivered_customer_date"]
+    - order_service["order_purchase_timestamp"]
 ).dt.total_seconds() / 86400
-order_service["is_late"] = (
-    order_service["order_delivered_customer_date"] > order_service["order_estimated_delivery_date"]
+order_service["is_late"] = np.where(
+    order_service["order_delivered_customer_date"].notna(),
+    order_service["order_delivered_customer_date"]
+    > order_service["order_estimated_delivery_date"],
+    np.nan,
 )
 review_one = (
     reviews.sort_values("review_answer_timestamp")
