@@ -1,7 +1,24 @@
-# Raw Data
+# Raw Data — Olist Brazilian E-Commerce
 
-Place the original source files in this folder.
+Use the **Brazilian E-Commerce Public Dataset by Olist**.
 
-Raw datasets are intentionally excluded from Git tracking by `.gitignore` when they are large or subject to redistribution restrictions.
+Source: Kaggle dataset `olistbr/brazilian-ecommerce`.
 
-Document the dataset source, download date, licence, and file names here when the dataset is selected.
+Place these files in this folder:
+
+- `olist_customers_dataset.csv`
+- `olist_orders_dataset.csv`
+- `olist_order_items_dataset.csv`
+- `olist_order_payments_dataset.csv`
+- `olist_order_reviews_dataset.csv`
+- `olist_products_dataset.csv`
+- `olist_sellers_dataset.csv`
+- `product_category_name_translation.csv`
+
+Optional for later geospatial work:
+
+- `olist_geolocation_dataset.csv`
+
+## Why raw files are not committed
+
+The dataset is large, and keeping raw source data outside version control makes the repository lighter and cleaner. The analysis code, schema, KPI definitions, and derived logic remain fully documented and reproducible.
