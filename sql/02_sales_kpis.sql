@@ -1,0 +1,26 @@
+-- 02_sales_kpis.sql
+-- Core commercial KPIs and monthly performance trends.
+
+-- Example structure (adapt column names to the selected dataset):
+
+-- WITH monthly AS (
+--   SELECT
+--     DATE_TRUNC('month', order_date) AS month,
+--     COUNT(DISTINCT order_id) AS orders,
+--     COUNT(DISTINCT customer_id) AS customers,
+--     SUM(revenue) AS revenue
+--   FROM fact_orders
+--   WHERE order_status = 'completed'
+--   GROUP BY 1
+-- )
+-- SELECT
+--   month,
+--   orders,
+--   customers,
+--   revenue,
+--   revenue / NULLIF(orders, 0) AS average_order_value,
+--   LAG(revenue) OVER (ORDER BY month) AS previous_month_revenue,
+--   (revenue - LAG(revenue) OVER (ORDER BY month))
+--     / NULLIF(LAG(revenue) OVER (ORDER BY month), 0) AS mom_revenue_growth
+-- FROM monthly
+-- ORDER BY month;
