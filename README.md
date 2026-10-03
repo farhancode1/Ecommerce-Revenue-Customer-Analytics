@@ -110,6 +110,38 @@ python python/build_analysis_tables.py
 3. **Customer Analytics** — new/returning customers and RFM segments
 4. **Retention & Service Quality** — cohort retention, delivery delays, review scores
 
+
+## Actual Results
+
+| KPI | Result |
+|---|---:|
+| Delivered orders | **96,478** |
+| Unique customers | **93,358** |
+| Merchandise revenue | **R$13.22M** |
+| Average order value | **R$137.04** |
+| Repeat purchase rate | **3.00%** |
+| Late delivery rate | **8.11%** |
+
+### Selected Business Insights
+
+- **Retention is weak:** only 3.00% of customers made more than one delivered purchase.
+- **Delivery reliability matters:** average review score was 4.29 for on-time deliveries versus 2.57 for late deliveries.
+- **Late deliveries are disproportionately associated with one-star reviews:** 46.21% of late deliveries received one star versus 6.59% of on-time deliveries.
+- **Like-for-like growth:** Jan–Aug 2018 merchandise revenue was about 141.1% above Jan–Aug 2017, with orders about 139.9% higher.
+- **Category concentration:** the top three categories generated about 25.9% of merchandise revenue.
+- **Geographic concentration:** São Paulo generated about 38.3% of merchandise revenue.
+- **Payment mix:** credit cards represented about 78.5% of recorded payment value.
+
+![Monthly revenue trend](images/monthly_revenue.svg)
+
+![Top categories](images/top_categories.svg)
+
+![Top states](images/top_states.svg)
+
+![Delivery review comparison](images/delivery_review_score.svg)
+
+Full findings and recommendations are documented in [`business_report/executive_summary.md`](business_report/executive_summary.md).
+
 ## Portfolio Integrity
 
 This repository does **not fabricate KPIs or conclusions**. Quantitative findings are added only after the raw Olist files are loaded and the analysis pipeline is executed.
