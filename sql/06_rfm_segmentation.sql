@@ -1,20 +1,52 @@
 -- 06_rfm_segmentation.sql
--- Recency-Frequency-Monetary customer segmentation.
+-- RFM customer segmentation using customer_unique_id.
 
--- Definitions:
--- Recency  = days since most recent completed purchase
--- Frequency = number of completed orders
--- Monetary  = total historical revenue
-
--- Planned process:
--- 1. Calculate R, F, and M per customer.
--- 2. Use NTILE(5) or percentile-based scoring.
--- 3. Combine scores into interpretable segments.
-
--- Example segments:
--- Champions
--- Loyal Customers
--- Potential Loyalists
--- New Customers
--- At Risk
--- Hibernating
+WITH snapshot AS (
+    SELECT MAX(order_purchase_timestamp)::date + INTERVAL '1 day' AS snapshot_date
+    FROM orders
+    WHERE order_status = 'delivered'
+),
+rfm_base AS (
+    SELECT
+        c.customer_unique_id,
+        (SELECT snapshot_date FROM snapshot) - MAX(o.order_purchase_timestamp)::date AS recency_days,
+        COUNT(DISTINCT o.order_id) AS frequency,
+        SUM(oi.price) AS monetary
+    FROM customers c
+    JOIN orders o ON o.customer_id = c.customer_id
+    JOIN order_items oi ON oi.order_id = o.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY c.customer_unique_id
+),
+scored AS (
+    SELECT
+        *,
+        6 - NTILE(5) OVER (ORDER BY recency_days ASC) AS r_score,
+        NTILE(5) OVER (ORDER BY frequency ASC) AS f_score,
+        NTILE(5) OVER (ORDER BY monetary ASC) AS m_score
+    FROM rfm_base
+),
+segmented AS (
+    SELECT
+        *,
+        CASE
+            WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Champions'
+            WHEN r_score >= 3 AND f_score >= 4 THEN 'Loyal Customers'
+            WHEN r_score >= 4 AND f_score <= 2 THEN 'New / Promising'
+            WHEN r_score <= 2 AND f_score >= 3 THEN 'At Risk'
+            WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
+            ELSE 'Potential Loyalists'
+        END AS rfm_segment
+    FROM scored
+)
+SELECT
+    customer_unique_id,
+    recency_days,
+    frequency,
+    ROUND(monetary,2) AS monetary,
+    r_score,
+    f_score,
+    m_score,
+    rfm_segment
+FROM segmented
+ORDER BY monetary DESC;
