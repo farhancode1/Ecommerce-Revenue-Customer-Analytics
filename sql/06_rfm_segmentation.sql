@@ -1,5 +1,8 @@
 -- 06_rfm_segmentation.sql
 -- RFM customer segmentation using customer_unique_id.
+-- Frequency is intentionally scored with business rules rather than NTILE because
+-- most Olist customers purchased only once; quantile-splitting tied frequency=1
+-- would create misleading differences between otherwise identical customers.
 
 WITH snapshot AS (
     SELECT MAX(order_purchase_timestamp)::date + INTERVAL '1 day' AS snapshot_date
@@ -18,23 +21,32 @@ rfm_base AS (
     WHERE o.order_status = 'delivered'
     GROUP BY c.customer_unique_id
 ),
-scored AS (
+recency_monetary_scores AS (
     SELECT
         *,
         6 - NTILE(5) OVER (ORDER BY recency_days ASC) AS r_score,
-        NTILE(5) OVER (ORDER BY frequency ASC) AS f_score,
         NTILE(5) OVER (ORDER BY monetary ASC) AS m_score
     FROM rfm_base
+),
+scored AS (
+    SELECT
+        *,
+        CASE
+            WHEN frequency >= 3 THEN 5
+            WHEN frequency = 2 THEN 3
+            ELSE 1
+        END AS f_score
+    FROM recency_monetary_scores
 ),
 segmented AS (
     SELECT
         *,
         CASE
-            WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Champions'
-            WHEN r_score >= 3 AND f_score >= 4 THEN 'Loyal Customers'
-            WHEN r_score >= 4 AND f_score <= 2 THEN 'New / Promising'
+            WHEN r_score >= 4 AND f_score >= 3 AND m_score >= 4 THEN 'Champions'
+            WHEN r_score >= 3 AND f_score >= 3 THEN 'Loyal Customers'
+            WHEN r_score >= 4 AND f_score = 1 THEN 'New / Promising'
             WHEN r_score <= 2 AND f_score >= 3 THEN 'At Risk'
-            WHEN r_score <= 2 AND f_score <= 2 THEN 'Hibernating'
+            WHEN r_score <= 2 AND f_score = 1 THEN 'Hibernating'
             ELSE 'Potential Loyalists'
         END AS rfm_segment
     FROM scored
