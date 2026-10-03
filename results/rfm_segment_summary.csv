@@ -1,0 +1,7 @@
+rfm_segment,customers,avg_recency_days,avg_frequency,avg_monetary,total_merchandise_value
+New / Promising,36345,91.45,1.00,140.37,5101677.71
+Hibernating,36094,396.36,1.00,139.64,5040184.26
+Potential Loyalists,18118,221.63,1.00,129.77,2351227.39
+Champions,941,90.21,2.19,326.83,307543.11
+At Risk,982,383.52,2.08,246.65,242211.41
+Loyal Customers,878,178.79,2.07,203.48,178654.23
